@@ -10,36 +10,39 @@ FILE_NAME = "stock_trades.csv"
 
 # 若檔案不存在，建立檔案
 if not os.path.exists(FILE_NAME):
-    df = pd.DataFrame(columns=["交易日期", "買/賣/股利", "代號", "股票", "交易類別", 
-                             "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
-                             "手續費", "交易稅", "交易成本", "支出", "收入", 
-                             "價差", "ROR", "持有時間"])
+    df = pd.DataFrame(columns=["交易日期", "買/賣/股利", "代號", "股票", "交易類別",
+                                "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
+                                "手續費", "交易稅", "交易成本", "支出", "收入",
+                                "價差", "ROR", "持有時間"])
     df.to_csv(FILE_NAME, index=False)
 
 # 讀取歷史交易紀錄
 def load_trades():
     if os.path.exists(FILE_NAME):
         return pd.read_csv(FILE_NAME)
-    return pd.DataFrame(columns=["交易日期", "買/賣/股利", "代號", "股票", "交易類別", 
-                               "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
-                               "手續費", "交易稅", "交易成本", "支出", "收入", 
-                               "價差", "ROR", "持有時間"])
+    return pd.DataFrame(columns=["交易日期", "買/賣/股利", "代號", "股票", "交易類別",
+                                "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
+                                "手續費", "交易稅", "交易成本", "支出", "收入",
+                                "價差", "ROR", "持有時間"])
 
 def format_stock_code(code):
-    """格式化股票代碼為 Yahoo Finance 格式"""
-    # 移除任何非數字字符
+    """格式化股票代號為 Yahoo Finance 格式"""
+    # 移除任何非数字字符
     code = ''.join(filter(str.isdigit, str(code)))
     
-    # 確保代碼至少為4位數
+    # 确保代码至少为4位数
     code = code.zfill(4)
     
+    # DR股票（如9103美德医疗-DR）使用.TW
+    if code.startswith('91'):
+        return f"{code}.TW"
     # ETF通常以00開頭
-    if code.startswith('00'):
+    elif code.startswith('00'):
         return f"{code}.TW"
     # 上櫃股票通常以6開頭
     elif code.startswith('6'):
         return f"{code}.TWO"
-    # 其他情況（主要是上市股票）
+    # 其他情况（主要是上市股票）
     else:
         return f"{code}.TW"
 
@@ -59,8 +62,14 @@ def get_stock_name(stock):
 
 def load_original_trades():
     """讀取原始交易記錄檔案"""
-    if os.path.exists("stock_trades-original.csv"):
-        return pd.read_csv("stock_trades-original.csv")
+    try:
+        if os.path.exists("stock_trades-original.csv"):
+            df = pd.read_csv("stock_trades-original.csv")
+            # 確保日期格式正確
+            df['交易日期'] = pd.to_datetime(df['交易日期']).dt.strftime('%Y/%m/%d')
+            return df
+    except Exception as e:
+        print(f"讀取交易記錄時出錯：{e}")
     return pd.DataFrame()
 
 def show_stock_history(stock_code):
@@ -69,121 +78,135 @@ def show_stock_history(stock_code):
     if df.empty:
         return "無歷史交易記錄"
     
-    # 過濾指定股票的記錄
-    stock_records = df[df['代號'] == int(stock_code)]
+    # 過濾指定股票的記錄並按日期排序（確保買賣順序正確）
+    stock_records = df[df['代號'] == int(stock_code)].sort_values('交易日期')
     if stock_records.empty:
         return "該股票無歷史交易記錄"
     
-    # 計算總投資金額和總收益
-    total_investment = 0
-    total_profit = 0
+    # 初始化變數
+    total_investment = 0  # 總投資（含手續費）
+    current_shares = 0   # 目前持股數
+    total_cost = 0      # 當前持股成本（不含手續費和交易稅）
+    total_profit = 0    # 總獲利
     
     # 添加表頭
     history_text = "═" * 120 + "\n"
     history_text += "📊 歷史交易記錄\n"
     history_text += "═" * 120 + "\n"
     
-    # 添加欄位標題，增加欄位寬度
+    # 新增列標題
     history_text += (
-        f"{'交易日期':^12} | {'交易':^6} | {'價格':>10} | {'股數':>8} | "
-        f"{'金額':>12} | {'手續費':>10} | {'交易稅':>10} | {'損益':>12}\n"
+        f"{'交易日期':^9.95} | "
+        f"{'交易':^5.5} | "
+        f"{'價格':>6} | "
+        f"{'股數':>9} | "
+        f"{'金額':>11} | "
+        f"{'手續費':>6.5} | "
+        f"{'交易稅':>6.5} | "
+        f"{'損益':>12}\n"
     )
     history_text += "─" * 120 + "\n"
     
-    # 依照日期排序
-    stock_records = stock_records.sort_values('交易日期', ascending=True)
-    
-    # 計算累計持有股數和成本
-    current_shares = 0
-    total_cost = 0
-    
+    # 處理每筆交易
     for _, row in stock_records.iterrows():
         trade_type = row['買/賣/股利']
+        profit = 0
         
         try:
             if trade_type == '買':
+                # 處理買入交易
                 price = float(row['買入價格'])
                 shares = int(row['買入股數'])
-                amount = -1 * price * shares
-                total_investment += abs(amount)
+                amount = price * shares
+                fee = float(row['手續費']) if pd.notna(row.get('手續費')) else 20
+                tax = 0
+                
+                # 更新持倉資訊
                 current_shares += shares
-                total_cost += abs(amount)
-            else:
+                total_cost += amount
+                total_investment += (amount + fee)
+                
+            elif trade_type == '賣':
+                # 處理賣出交易
                 price = float(row['賣出價格'])
                 shares = int(row['賣出股數'])
                 amount = price * shares
-                current_shares -= shares
-                # 計算賣出部分的成本比例
-                if current_shares + shares > 0:  # 防止除以零
-                    cost_per_share = total_cost / (current_shares + shares)
-                    sold_cost = cost_per_share * shares
-                    total_cost -= sold_cost
-                else:
-                    sold_cost = total_cost
-                    total_cost = 0
+                fee = float(row['手續費']) if pd.notna(row.get('手續費')) else 20
+                tax = float(row['交易稅']) if pd.notna(row.get('交易稅')) else round(amount * 0.003)
+                
+                if current_shares >= shares:
+                    # 計算賣出部分的成本（使用平均成本）
+                    avg_cost_per_share = total_cost / current_shares
+                    sold_cost = avg_cost_per_share * shares
+                    
+                    # 計算本次交易獲利
+                    # 卖賣出收入 = 賣出金額 - 手續費 - 交易稅
+                    net_income = amount - fee - tax
+                    # 賣出成本 = 買進成本 + 買進手續費
+                    buy_fee = 20  # 買進手續費最低20元
+                    buy_cost = sold_cost + buy_fee
+                    # 實際獲利 = 賣出淨收入 - 買入成本
+                    profit = net_income - buy_cost
+                    total_profit += profit
+                    
+                    # 更新持倉資訊
+                    current_shares -= shares
+                    # 更新剩餘股票的成本
+                    if current_shares > 0:
+                        total_cost = avg_cost_per_share * current_shares
+                    else:
+                        total_cost = 0
             
-            fee = float(row['手續費']) if '手續費' in row and pd.notna(row['手續費']) else 0
-            tax = float(row['交易稅']) if '交易稅' in row and pd.notna(row['交易稅']) else 0
-            
-            # 計算損益
-            if trade_type == '買':
-                profit = 0  # 買入時不計算損益
-            else:
-                profit = amount - sold_cost - fee - tax  # 賣出時計算實際損益
-                total_profit += profit
-            
-            # 格式化每一行交易記錄，增加間距和對齊
+            # 格式化每筆交易記錄
             history_text += (
                 f"{str(row['交易日期']):^12} | "
                 f"{trade_type:^6} | "
-                f"{price:>10,.2f} | "
-                f"{shares:>8,d} | "
+                f"{price:>7.2f} | "
+                f"{shares:>10,d} | "
                 f"{amount:>12,.0f} | "
-                f"{fee:>10,.0f} | "
-                f"{tax:>10,.0f} | "
+                f"{fee:>8,.0f} | "
+                f"{tax:>8,.0f} | "
                 f"{profit:>12,.0f}\n"
             )
-        except (ValueError, TypeError) as e:
+            
+        except Exception as e:
+            print(f"處理交易記錄時出錯：{e}")
             continue
     
-    # 添加匯總資訊
+    # 新增匯總資訊
     history_text += "═" * 120 + "\n"
     
-    # 計算報酬率
+    # 計算報酬率（保留兩位小數）
     if total_investment > 0:
         roi = (total_profit / total_investment) * 100
-        roi_text = f"盈利" if roi > 0 else "虧損"
         history_text += (
             f"總投資金額：{total_investment:>15,.0f} 元   |   "
             f"總損益：{total_profit:>15,.0f} 元   |   "
-            f"{roi_text}：{abs(roi):>8,.2f}%\n"
+            f"報酬率：{roi:>8.2f}%\n"
         )
-    else:
-        history_text += "尚無投資損益資訊\n"
     
-    # 添加目前持股資訊
-    if current_shares > 0 and total_cost > 0:  # 確保不會除以零
+    # 新增目前持股資訊
+    history_text += f"目前持有：{current_shares:,d} 股"
+    if current_shares > 0 and total_cost > 0:
         avg_cost = total_cost / current_shares
-        history_text += f"目前持有：{current_shares:,d} 股   |   平均成本：{avg_cost:,.2f} 元\n"
-    elif current_shares > 0:
-        history_text += f"目前持有：{current_shares:,d} 股   |   平均成本：無法計算\n"
+        history_text += f"   |   平均成本：{avg_cost:,.2f} 元"
+    history_text += "\n"
     
     history_text += "═" * 120 + "\n"
-    
     return history_text
 
 def get_stock_price():
     stock_code = entry_code.get()
     if not stock_code:
-        messagebox.showerror("錯誤", "請輸入股票代碼")
+        messagebox.showerror("错误", "請輸入股票代码")
         return
     
     try:
-        # 首先嘗試 .TWO 格式（上櫃股票）
+        # 首先尝试 .TWO 格式（上柜股票）
         formatted_code = format_stock_code(stock_code)
         stock = yf.Ticker(formatted_code)
         
-        # 嘗試獲取數據
+        # 尝试获取数据
         data = stock.history(period="5d")
         if len(data) == 0:
             # 如果獲取失敗，嘗試切換交易所後綴
@@ -195,19 +218,19 @@ def get_stock_price():
             data = stock.history(period="5d")
             
         if len(data) == 0:
-            raise Exception("無法獲取股價數據")
+            raise Exception("无法获取股价数据")
         
         # 獲取最新的收盤價和日期
         price = data.iloc[-1]["Close"]
         trading_date = data.index[-1].strftime("%Y-%m-%d")
         
-        # 獲取股票名稱
+        # 取得股票名稱
         stock_name = get_stock_name(stock)
         if not stock_name:
             stock_name = f"股票 {stock_code}"
         
         # 顯示當前價格
-        current_price_text = f"{stock_name} 收盤價：{price:.2f} 元 ({trading_date})"
+        current_price_text = f"{stock_name} 收盘价：{price:.2f} 元 ({trading_date})"
         label_price.config(text=current_price_text)
         
         # 顯示歷史交易記錄
@@ -217,10 +240,11 @@ def get_stock_price():
             
     except Exception as e:
         error_msg = str(e)
+        print(f"取得股價時出錯：{error_msg}")  # 添加調試資訊
         if "HTTP 404 Not Found" in error_msg:
-            messagebox.showerror("錯誤", f"找不到股票代碼 {stock_code}，請確認是否為有效的台股代碼")
+            messagebox.showerror("错误", f"找不到股票代碼 {stock_code}，請確認是否為有效的台股代碼")
         else:
-            messagebox.showerror("錯誤", f"無法獲取股價，請檢查網路連接或稍後再試\n錯誤信息：{error_msg}")
+            messagebox.showerror("错误", f"無法取得股價，請檢查網路連線或稍後再試\n錯誤訊息：{error_msg}")
         return
 
 # 記錄交易紀錄
