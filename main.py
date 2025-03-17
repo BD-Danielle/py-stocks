@@ -96,14 +96,14 @@ def show_stock_history(stock_code):
     
     # 新增列標題
     history_text += (
-        f"{'交易日期':^9.95} | "
+        f"{'交易日期':^9.99} | "
         f"{'交易':^5.5} | "
         f"{'價格':>6} | "
         f"{'股數':>9} | "
         f"{'金額':>11} | "
         f"{'手續費':>6.5} | "
         f"{'交易稅':>6.5} | "
-        f"{'損益':>12}\n"
+        f"{'損益':>11}\n"
     )
     history_text += "─" * 120 + "\n"
     
@@ -180,8 +180,8 @@ def show_stock_history(stock_code):
     if total_investment > 0:
         roi = (total_profit / total_investment) * 100
         history_text += (
-            f"總投資金額：{total_investment:>15,.0f} 元   |   "
-            f"總損益：{total_profit:>15,.0f} 元   |   "
+            f"總投資金額：{total_investment:>7,.0f} 元   |   "
+            f"總損益：{total_profit:>8,.0f} 元   |   "
             f"報酬率：{roi:>8.2f}%\n"
         )
     
@@ -194,6 +194,13 @@ def show_stock_history(stock_code):
     
     history_text += "═" * 120 + "\n"
     return history_text
+
+def auto_update_price():
+    """每分鐘自動更新股價"""
+    if entry_code.get():  # 如果有輸入股票代碼
+        get_stock_price()
+    # 每60000毫秒（1分鐘）執行一次
+    root.after(60000, auto_update_price)
 
 def get_stock_price():
     stock_code = entry_code.get()
@@ -229,8 +236,9 @@ def get_stock_price():
         if not stock_name:
             stock_name = f"股票 {stock_code}"
         
-        # 顯示當前價格
-        current_price_text = f"{stock_name} 收盘价：{price:.2f} 元 ({trading_date})"
+        # 显示当前价格和更新时间
+        current_time = datetime.now().strftime("%H:%M:%S")
+        current_price_text = f"{stock_name} 收盤價：{price:.2f} 元 ({trading_date}) - 更新時間：{current_time}"
         label_price.config(text=current_price_text)
         
         # 顯示歷史交易記錄
@@ -370,6 +378,8 @@ def on_stock_selected(event):
         entry_code.insert(0, stock_code)
         # 觸發獲取股價
         get_stock_price()
+        # 開始自動更新
+        auto_update_price()
 
 # 介面設計
 root = tk.Tk()
@@ -391,7 +401,7 @@ stock_combo.pack(side=tk.LEFT, padx=5)
 stock_combo.bind('<<ComboboxSelected>>', on_stock_selected)
 
 # 取得股價按鈕
-btn_price = tk.Button(stock_select_frame, text="獲取即時股價", command=get_stock_price)
+btn_price = tk.Button(stock_select_frame, text="獲取即時股價", command=lambda: [get_stock_price(), auto_update_price()])
 btn_price.pack(side=tk.LEFT, padx=5)
 
 # 當前價格標籤
