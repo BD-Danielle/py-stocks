@@ -5,6 +5,8 @@ import pandas as pd
 import os
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.rcParams['font.family'] = ['WenQuanYi Micro Hei']
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import requests
@@ -585,7 +587,7 @@ def record_trade():
         "ROR": "",
         "持有時間": 0
     }])
-
+    
     # 存入 CSV
     df = load_trades()
     df = pd.concat([df, new_trade], ignore_index=True)
@@ -1430,37 +1432,44 @@ def create_status_bar(root_window):
 
 def export_trading_records():
     """匯出交易記錄"""
-    df = load_original_trades()
-    if df.empty:
-        messagebox.showwarning("警告", "沒有可匯出的交易記錄")
-        return
-
-    # 讓使用者選擇保存位置和格式
-    file_types = [
-        ('Excel 檔案', '*.xlsx'),
-        ('CSV 檔案', '*.csv'),
-        ('JSON 檔案', '*.json')
-    ]
-    file_path = filedialog.asksaveasfilename(
-        defaultextension=".xlsx",
-        filetypes=file_types,
-        title="選擇匯出位置"
-    )
-
-    if not file_path:
-        return
-
     try:
-        if file_path.endswith('.xlsx'):
-            df.to_excel(file_path, index=False)
-        elif file_path.endswith('.csv'):
-            df.to_csv(file_path, index=False)
-        elif file_path.endswith('.json'):
-            df.to_json(file_path, orient='records', force_ascii=False)
+        df = load_original_trades()
+        if df.empty:
+            messagebox.showwarning("警告", "沒有可匯出的交易記錄")
+            return
 
-        messagebox.showinfo("成功", "交易記錄已成功匯出")
+        # 讓使用者選擇保存位置和格式
+        file_types = [
+            ('Excel 檔案', '*.xlsx'),
+            ('CSV 檔案', '*.csv'),
+            ('JSON 檔案', '*.json')
+        ]
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=file_types,
+            title="選擇匯出位置"
+        )
+
+        if not file_path:
+            return
+
+        try:
+            if file_path.endswith('.xlsx'):
+                # 使用 openpyxl 引擎
+                df.to_excel(file_path, index=False, engine='openpyxl')
+            elif file_path.endswith('.csv'):
+                df.to_csv(file_path, index=False)
+            elif file_path.endswith('.json'):
+                df.to_json(file_path, orient='records', force_ascii=False)
+
+            messagebox.showinfo("成功", f"交易記錄已成功匯出到：\n{file_path}")
+        except PermissionError:
+            messagebox.showerror("錯誤", "無法存取選擇的位置，請確認是否有寫入權限")
+        except Exception as e:
+            messagebox.showerror("錯誤", f"匯出失敗：{str(e)}\n請確認檔案未被其他程式開啟")
+            
     except Exception as e:
-        messagebox.showerror("錯誤", f"匯出失敗：{str(e)}")
+        messagebox.showerror("錯誤", f"準備匯出資料時發生錯誤：{str(e)}")
 
 
 def create_menu(root_window):
