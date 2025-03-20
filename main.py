@@ -462,15 +462,15 @@ def get_stock_price():
 
     stock_code = entry_code.get()
     if not stock_code:
-        messagebox.showerror("错误", "請輸入股票代码")
+        messagebox.showerror("錯誤", "請輸入股票代碼")
         return
     
     try:
-        # 首先尝试 .TWO 格式（上柜股票）
+        # 首先嘗試 .TWO 格式（上櫃股票）
         formatted_code = format_stock_code(stock_code)
         stock = yf.Ticker(formatted_code)
         
-        # 尝试获取数据
+        # 嘗試獲取數據
         data = stock.history(period="5d")
         if len(data) == 0:
             # 如果獲取失敗，嘗試切換交易所後綴
@@ -482,7 +482,7 @@ def get_stock_price():
             data = stock.history(period="5d")
             
         if len(data) == 0:
-            raise Exception("无法获取股价数据")
+            raise Exception(f"無法獲取股票 {stock_code} 的數據，請確認：\n1. 股票代碼是否正確\n2. 該股票是否仍在交易\n3. 是否為台股代碼")
         
         # 獲取最新的收盤價和日期
         price = data.iloc[-1]["Close"]
@@ -513,14 +513,14 @@ def get_stock_price():
     except Exception as e:
         error_msg = str(e)
         print(f"取得股價時出錯：{error_msg}")  # 添加調試資訊
-        if "HTTP 404 Not Found" in error_msg:
+        if "No data found" in error_msg or "delisted" in error_msg:
             messagebox.showerror(
-                "错误",
-                f"找不到股票代碼 {stock_code}，請確認是否為有效的台股代碼"
+                "錯誤",
+                f"無法獲取股票 {stock_code} 的數據，請確認：\n1. 股票代碼是否正確\n2. 該股票是否仍在交易\n3. 是否為台股代碼"
             )
         else:
             messagebox.showerror(
-                "错误",
+                "錯誤",
                 f"無法取得股價，請檢查網路連線或稍後再試\n錯誤訊息：{error_msg}"
             )
         return
@@ -1110,8 +1110,8 @@ def create_chip_analysis_frame(notebook):
             labels['foreign_holding'].config(text=f"{holding_data['外資']:.2f}%")
             labels['trust_holding'].config(text=f"{holding_data['投信']:.2f}%")
             labels['dealer_holding'].config(text=f"{holding_data['自營商']:.2f}%")
-            labels['margin_balance'].config(text=f"{margin_data[-1]:,.0f}")
-            labels['short_balance'].config(text=f"{short_data[-1]:,.0f}")
+            labels['margin_balance'].config(text=f"{margin_data.iloc[-1]:,.0f}")
+            labels['short_balance'].config(text=f"{short_data.iloc[-1]:,.0f}")
             labels['day_trade_ratio'].config(text="5.23%")  # 模擬當沖比率
             
             # 調整布局
@@ -1938,20 +1938,20 @@ def update_chip_data(stock_code):
         # 更新左側籌碼資訊
         if inst_data and margin_data:
             # 計算三大法人最新持股比例
-            total_inst = sum([inst_data['foreign'][-1], 
-                            inst_data['trust'][-1], 
-                            inst_data['dealer'][-1]])
+            total_inst = sum([inst_data['foreign'].iloc[-1], 
+                            inst_data['trust'].iloc[-1], 
+                            inst_data['dealer'].iloc[-1]])
             
             labels['foreign_holding'].config(
-                text=f"{inst_data['foreign'][-1]/total_inst*100:.2f}%")
+                text=f"{inst_data['foreign'].iloc[-1]/total_inst*100:.2f}%")
             labels['trust_holding'].config(
-                text=f"{inst_data['trust'][-1]/total_inst*100:.2f}%")
+                text=f"{inst_data['trust'].iloc[-1]/total_inst*100:.2f}%")
             labels['dealer_holding'].config(
-                text=f"{inst_data['dealer'][-1]/total_inst*100:.2f}%")
+                text=f"{inst_data['dealer'].iloc[-1]/total_inst*100:.2f}%")
             labels['margin_balance'].config(
-                text=f"{margin_data['margin_balance'][-1]:,}")
+                text=f"{margin_data['margin_balance'].iloc[-1]:,}")
             labels['short_balance'].config(
-                text=f"{margin_data['short_balance'][-1]:,}")
+                text=f"{margin_data['short_balance'].iloc[-1]:,}")
             
             # 計算當沖比率（假設值）
             labels['day_trade_ratio'].config(text="5.23%")
