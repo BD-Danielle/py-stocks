@@ -3,7 +3,7 @@ from tkinter import messagebox, ttk, filedialog
 import yfinance as yf
 import pandas as pd
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.rcParams['font.family'] = ['WenQuanYi Micro Hei']
@@ -98,8 +98,8 @@ def load_original_trades():
     """讀取原始交易記錄檔案"""
     try:
         if os.path.exists("stock_trades-original.csv"):
-            # 讀取 CSV 文件
-            df = pd.read_csv("stock_trades-original.csv")
+            # 讀取 CSV 文件，指定編碼為 utf-8
+            df = pd.read_csv("stock_trades-original.csv", encoding='utf-8')
 
             # 確保必要的列存在
             required_columns = [
@@ -156,7 +156,7 @@ def get_stock_holdings():
 
         if current_shares > 0:
             # 獲取最新的股票名稱
-            stock_name = stock_df.iloc[-1]['股票']
+            stock_name = stock_df.iloc[-1]['股票'] if pd.notna(stock_df.iloc[-1]['股票']) else "未知股票"
 
             # 計算平均成本
             buy_records = stock_df[stock_df['買/賣/股利'] == '買']
@@ -189,6 +189,18 @@ def update_stock_list(*args):
         stock_combo.set(stock_options[0])  # 設置預設選項
     else:
         stock_combo['values'] = ['無持股紀錄']
+        stock_combo.set('無持股紀錄')
+
+    # 確保所有持有的股票代號都能正確顯示在下拉選單中
+    all_codes = load_original_trades()['代號'].unique()
+    for code in all_codes:
+        if code not in holdings:
+            stock_options.append(f"{code} - 未知股票 (0股)")
+
+    stock_combo['values'] = stock_options
+    if stock_options:
+        stock_combo.set(stock_options[0])  # 設置預設選項
+    else:
         stock_combo.set('無持股紀錄')
 
 
@@ -322,13 +334,20 @@ def auto_update_price():
     if hasattr(root, 'status_label'):
         root.status_label.config(text="更新中...")
 
-    result = get_stock_price()
+    # 獲取當前時間
+    now = datetime.now()
+    current_time = now.time()
+    current_day = now.weekday()
+
+    # 檢查是否在交易時間內（週一至週五，8:30 至 13:30）
+    if current_day < 5 and time(8, 30) <= current_time <= time(13, 30):
+        result = get_stock_price()
 
     if hasattr(root, 'status_label'):
         root.status_label.config(text="就緒")
         if hasattr(root, 'update_time_label'):
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            root.update_time_label.config(text=f"最後更新：{current_time}")
+            current_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
+            root.update_time_label.config(text=f"最後更新：{current_time_str}")
 
     # 每分鐘更新一次
     root.after(60000, auto_update_price)
