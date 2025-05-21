@@ -1,3 +1,9 @@
+import time
+from datetime import time as time_obj  # Rename to avoid conflict
+from bs4 import BeautifulSoup
+import requests
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog
 import yfinance as yf
@@ -6,12 +12,9 @@ import os
 from datetime import datetime, timedelta, time
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.rcParams['font.family'] = ['WenQuanYi Micro Hei']
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import requests
-from bs4 import BeautifulSoup
-import time
+# Use system Chinese font for macOS
+matplotlib.rcParams['font.family'] = [
+    'Arial Unicode MS', 'Heiti TC', 'STHeiti', 'Microsoft YaHei']
 
 # 設定 matplotlib 中文字型
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']  # Mac OS 的中文字型
@@ -35,8 +38,8 @@ FILE_NAME = "stock_trades.csv"
 if not os.path.exists(FILE_NAME):
     df = pd.DataFrame(columns=[
         "交易日期", "買/賣/股利", "代號", "股票", "交易類別",
-                             "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
-                             "手續費", "交易稅", "交易成本", "支出", "收入", 
+        "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
+        "手續費", "交易稅", "交易成本", "支出", "收入",
         "價差", "ROR", "持有時間"
     ])
     df.to_csv(FILE_NAME, index=False)
@@ -50,8 +53,8 @@ def load_trades():
         return pd.read_csv(FILE_NAME)
     return pd.DataFrame(columns=[
         "交易日期", "買/賣/股利", "代號", "股票", "交易類別",
-                              "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
-                              "手續費", "交易稅", "交易成本", "支出", "收入", 
+        "買入股數", "買入價格", "賣出股數", "賣出價格", "現價",
+        "手續費", "交易稅", "交易成本", "支出", "收入",
         "價差", "ROR", "持有時間"
     ])
 
@@ -60,10 +63,10 @@ def format_stock_code(code):
     """格式化股票代號為 Yahoo Finance 格式"""
     # 移除任何非数字字符
     code = ''.join(filter(str.isdigit, str(code)))
-    
+
     # 确保代码至少为4位数
     code = code.zfill(4)
-    
+
     # DR股票（如9103美德医疗-DR）使用.TW
     if code.startswith('91'):
         return f"{code}.TW"
@@ -124,7 +127,8 @@ def load_original_trades():
 
             # 處理金額欄位中的逗號和引號
             for col in ['支出', '收入']:
-                df[col] = pd.to_numeric(df[col].str.replace(',', '').str.replace('"', ''), errors='coerce').fillna(0)
+                df[col] = pd.to_numeric(df[col].str.replace(
+                    ',', '').str.replace('"', ''), errors='coerce').fillna(0)
 
             return df
 
@@ -156,7 +160,8 @@ def get_stock_holdings():
 
         if current_shares > 0:
             # 獲取最新的股票名稱
-            stock_name = stock_df.iloc[-1]['股票'] if pd.notna(stock_df.iloc[-1]['股票']) else "未知股票"
+            stock_name = stock_df.iloc[-1]['股票'] if pd.notna(
+                stock_df.iloc[-1]['股票']) else "未知股票"
 
             # 計算平均成本
             buy_records = stock_df[stock_df['買/賣/股利'] == '買']
@@ -209,23 +214,23 @@ def show_stock_history(stock_code):
     df = load_original_trades()
     if df.empty:
         return "無歷史交易記錄"
-    
+
     # 過濾指定股票的記錄並按日期排序（確保買賣順序正確）
     stock_records = df[df['代號'] == int(stock_code)].sort_values('交易日期')
     if stock_records.empty:
         return "該股票無歷史交易記錄"
-    
+
     # 初始化變數
     total_investment = 0  # 總投資（含手續費）
     current_shares = 0   # 目前持股數
     total_cost = 0      # 當前持股成本（不含手續費和交易稅）
     total_profit = 0    # 總獲利
-    
+
     # 添加表頭
     history_text = "═" * 120 + "\n"
     history_text += "📊 歷史交易記錄\n"
     history_text += "═" * 120 + "\n"
-    
+
     # 新增列標題
     history_text += (
         f"{'交易日期':^9.99} | "
@@ -238,12 +243,12 @@ def show_stock_history(stock_code):
         f"{'損益':>11}\n"
     )
     history_text += "─" * 120 + "\n"
-    
+
     # 處理每筆交易
     for _, row in stock_records.iterrows():
         trade_type = row['買/賣/股利']
         profit = 0
-        
+
         try:
             if trade_type == '買':
                 # 處理買入交易
@@ -305,10 +310,10 @@ def show_stock_history(stock_code):
         except Exception as e:
             print(f"處理交易記錄時出錯：{e}")
             continue
-    
+
     # 新增匯總資訊
     history_text += "═" * 120 + "\n"
-    
+
     # 計算報酬率（保留兩位小數）
     if total_investment > 0:
         roi = (total_profit / total_investment) * 100
@@ -324,7 +329,7 @@ def show_stock_history(stock_code):
         avg_cost = total_cost / current_shares
         history_text += f"   |   平均成本：{avg_cost:,.2f} 元"
     history_text += "\n"
-    
+
     history_text += "═" * 120 + "\n"
     return history_text
 
@@ -340,7 +345,7 @@ def auto_update_price():
     current_day = now.weekday()
 
     # 檢查是否在交易時間內（週一至週五，8:30 至 13:30）
-    if current_day < 5 and time(8, 30) <= current_time <= time(13, 30):
+    if current_day < 5 and time_obj(8, 30) <= current_time <= time_obj(13, 30):
         result = get_stock_price()
 
     if hasattr(root, 'status_label'):
@@ -483,12 +488,12 @@ def get_stock_price():
     if not stock_code:
         messagebox.showerror("錯誤", "請輸入股票代碼")
         return
-    
+
     try:
         # 首先嘗試 .TWO 格式（上櫃股票）
         formatted_code = format_stock_code(stock_code)
         stock = yf.Ticker(formatted_code)
-        
+
         # 嘗試獲取數據
         data = stock.history(period="5d")
         if len(data) == 0:
@@ -499,19 +504,20 @@ def get_stock_price():
                 formatted_code = f"{stock_code}.TWO"
             stock = yf.Ticker(formatted_code)
             data = stock.history(period="5d")
-            
+
         if len(data) == 0:
-            raise Exception(f"無法獲取股票 {stock_code} 的數據，請確認：\n1. 股票代碼是否正確\n2. 該股票是否仍在交易\n3. 是否為台股代碼")
-        
+            raise Exception(
+                f"無法獲取股票 {stock_code} 的數據，請確認：\n1. 股票代碼是否正確\n2. 該股票是否仍在交易\n3. 是否為台股代碼")
+
         # 獲取最新的收盤價和日期
         price = data.iloc[-1]["Close"]
         trading_date = data.index[-1].strftime("%Y-%m-%d")
-        
+
         # 取得股票名稱
         stock_name = get_stock_name(stock)
         if not stock_name:
             stock_name = f"股票 {stock_code}"
-        
+
         # 显示当前价格和更新时间
         current_time = datetime.now().strftime("%H:%M:%S")
         current_price_text = (
@@ -522,13 +528,13 @@ def get_stock_price():
 
         # 更新技術走勢圖
         update_stock_chart(stock_code)
-        
+
         # 顯示歷史交易記錄
         if text_history:
             history_text = show_stock_history(stock_code)
             text_history.delete("1.0", tk.END)
             text_history.insert(tk.END, history_text)
-            
+
     except Exception as e:
         error_msg = str(e)
         print(f"取得股價時出錯：{error_msg}")  # 添加調試資訊
@@ -551,7 +557,7 @@ def record_trade():
     stock_code = entry_code.get()
     buy_price = entry_buy_price.get()
     shares = entry_shares.get()
-    
+
     if not stock_code or not buy_price or not shares:
         messagebox.showerror("錯誤", "請填寫所有欄位")
         return
@@ -567,14 +573,14 @@ def record_trade():
     try:
         formatted_code = format_stock_code(stock_code)
         stock = yf.Ticker(formatted_code)
-        
+
         data = stock.history(period="1mo")
         if len(data) == 0:
             raise Exception("無法獲取股價數據")
-            
+
         current_price = data.iloc[-1]["Close"]
         stock_name = get_stock_name(stock)
-            
+
     except Exception as e:
         messagebox.showerror("錯誤", f"無法獲取當前股價\n錯誤信息：{str(e)}")
         return
@@ -583,7 +589,7 @@ def record_trade():
     fee, tax = calculate_fees(buy_price, shares, True)
     total_cost = fee + tax
     total_expense = buy_price * shares + total_cost
-    
+
     # 準備新的交易記錄
     today = datetime.now().strftime("%Y/%m/%d")
     new_trade = pd.DataFrame([{
@@ -606,7 +612,7 @@ def record_trade():
         "ROR": "",
         "持有時間": 0
     }])
-    
+
     # 存入 CSV
     df = load_trades()
     df = pd.concat([df, new_trade], ignore_index=True)
@@ -621,11 +627,11 @@ def record_trade():
 def update_trades_list():
     df = load_trades()
     text_trades.delete("1.0", tk.END)
-    
+
     if df.empty:
         text_trades.insert(tk.END, "無交易紀錄")
         return
-    
+
     for _, row in df.iterrows():
         # 格式化顯示內容
         trade_type = row['買/賣/股利']
@@ -635,7 +641,7 @@ def update_trades_list():
         else:
             price = row['賣出價格']
             shares = row['賣出股數']
-            
+
         text_trades.insert(tk.END, (
             f"日期: {row['交易日期']} | "
             f"交易: {trade_type} | "
@@ -1052,7 +1058,8 @@ def create_chip_analysis_frame(notebook):
 
     for i, (label, key) in enumerate(info_items):
         labels[key] = ttk.Label(info_frame, text="0.00%")
-        ttk.Label(info_frame, text=label).grid(row=i, column=0, padx=5, pady=2, sticky='e')
+        ttk.Label(info_frame, text=label).grid(
+            row=i, column=0, padx=5, pady=2, sticky='e')
         labels[key].grid(row=i, column=1, padx=5, pady=2, sticky='w')
 
     # 右側：籌碼變化圖表
@@ -1065,51 +1072,54 @@ def create_chip_analysis_frame(notebook):
             # 獲取股票數據
             formatted_code = format_stock_code(stock_code)
             stock = yf.Ticker(formatted_code)
-            
+
             # 獲取大戶持股資料（最近5個交易日）
             df = stock.history(period="5d")
-            
+
             if df.empty:
                 return
-            
+
             # 清除現有圖表
             for widget in chart_frame.winfo_children():
                 widget.destroy()
 
             # 創建圖表
             fig = Figure(figsize=(10, 8))
-            
+
             # 設置全局字型
             plt.rcParams['font.size'] = 10
-            
+
             # 三大法人買賣超圖
             ax1 = fig.add_subplot(311)
             dates = df.index
-            
+
             # 模擬三大法人買賣超數據（實際應從其他數據源獲取）
             foreign_buy = df['Volume'] * 0.4  # 外資買超
             trust_buy = df['Volume'] * 0.1    # 投信買超
             dealer_buy = df['Volume'] * 0.05   # 自營商買超
-            
+
             ax1.bar(dates, foreign_buy, label='外資', color='red', alpha=0.7)
-            ax1.bar(dates, trust_buy, bottom=foreign_buy, label='投信', color='green', alpha=0.7)
-            ax1.bar(dates, dealer_buy, bottom=foreign_buy+trust_buy, label='自營商', color='blue', alpha=0.7)
-            
+            ax1.bar(dates, trust_buy, bottom=foreign_buy,
+                    label='投信', color='green', alpha=0.7)
+            ax1.bar(dates, dealer_buy, bottom=foreign_buy +
+                    trust_buy, label='自營商', color='blue', alpha=0.7)
+
             ax1.set_title('三大法人買賣超')
             ax1.legend()
             ax1.grid(True)
-            
+
             # 融資融券圖
             ax2 = fig.add_subplot(312)
             margin_data = df['High'] * 1000  # 模擬融資餘額
             short_data = df['Low'] * 1000    # 模擬融券餘額
-            
+
             ax2.plot(dates, margin_data, label='融資餘額', color='red', marker='o')
-            ax2.plot(dates, short_data, label='融券餘額', color='green', marker='o')
+            ax2.plot(dates, short_data, label='融券餘額',
+                     color='green', marker='o')
             ax2.set_title('融資融券餘額')
             ax2.legend()
             ax2.grid(True)
-            
+
             # 股權分散圖
             ax3 = fig.add_subplot(313)
             holding_data = {
@@ -1118,35 +1128,36 @@ def create_chip_analysis_frame(notebook):
                 '自營商': 5,
                 '其他': 45
             }
-            
-            ax3.pie(holding_data.values(), 
-                   labels=holding_data.keys(),
-                   autopct='%1.1f%%',
-                   colors=['red', 'green', 'blue', 'gray'])
+
+            ax3.pie(holding_data.values(),
+                    labels=holding_data.keys(),
+                    autopct='%1.1f%%',
+                    colors=['red', 'green', 'blue', 'gray'])
             ax3.set_title('股權分散')
-            
+
             # 更新左側籌碼資訊
             labels['foreign_holding'].config(text=f"{holding_data['外資']:.2f}%")
             labels['trust_holding'].config(text=f"{holding_data['投信']:.2f}%")
             labels['dealer_holding'].config(text=f"{holding_data['自營商']:.2f}%")
-            labels['margin_balance'].config(text=f"{margin_data.iloc[-1]:,.0f}")
+            labels['margin_balance'].config(
+                text=f"{margin_data.iloc[-1]:,.0f}")
             labels['short_balance'].config(text=f"{short_data.iloc[-1]:,.0f}")
             labels['day_trade_ratio'].config(text="5.23%")  # 模擬當沖比率
-            
+
             # 調整布局
             fig.tight_layout()
-            
+
             # 創建畫布並顯示
             canvas = FigureCanvasTkAgg(fig, master=chart_frame)
             canvas.draw()
             canvas.get_tk_widget().pack(fill='both', expand=True)
-            
+
         except Exception as e:
             print(f"更新籌碼資料時出錯：{str(e)}")
-    
+
     # 將更新函數保存為 frame 的屬性
     frame.update_chip_data = update_chip_data
-    
+
     return frame
 
 
@@ -1183,31 +1194,33 @@ def create_performance_frame(notebook):
     # 1. 報酬分析頁面
     returns_frame = ttk.Frame(details_frame)
     details_frame.add(returns_frame, text="報酬分析")
-    
+
     # 創建報酬分析子頁面的內容
     returns_left = ttk.Frame(returns_frame)
     returns_left.pack(side='left', fill='both', expand=True)
-    
+
     # 月度報酬表格
     monthly_returns = ttk.LabelFrame(returns_left, text="月度報酬率")
     monthly_returns.pack(fill='both', expand=True, padx=5, pady=5)
-    
+
     # 創建表格
-    tree = ttk.Treeview(monthly_returns, columns=('年月', '報酬率', '累計報酬'), show='headings')
+    tree = ttk.Treeview(monthly_returns, columns=(
+        '年月', '報酬率', '累計報酬'), show='headings')
     tree.heading('年月', text='年月')
     tree.heading('報酬率', text='報酬率')
     tree.heading('累計報酬', text='累計報酬')
     tree.pack(fill='both', expand=True)
-    
+
     # 添加滾動條
-    scrollbar = ttk.Scrollbar(monthly_returns, orient="vertical", command=tree.yview)
+    scrollbar = ttk.Scrollbar(
+        monthly_returns, orient="vertical", command=tree.yview)
     scrollbar.pack(side='right', fill='y')
     tree.configure(yscrollcommand=scrollbar.set)
-    
+
     # 報酬分析圖表
     returns_right = ttk.Frame(returns_frame)
     returns_right.pack(side='right', fill='both', expand=True)
-    
+
     fig = Figure(figsize=(6, 4))
     ax = fig.add_subplot(111)
     ax.set_title('累計報酬走勢')
@@ -1218,15 +1231,15 @@ def create_performance_frame(notebook):
     # 2. 風險分析頁面
     risk_frame = ttk.Frame(details_frame)
     details_frame.add(risk_frame, text="風險分析")
-    
+
     # 創建風險分析子頁面的內容
     risk_left = ttk.Frame(risk_frame)
     risk_left.pack(side='left', fill='both', expand=True)
-    
+
     # 風險指標
     risk_metrics = ttk.LabelFrame(risk_left, text="風險指標")
     risk_metrics.pack(fill='both', expand=True, padx=5, pady=5)
-    
+
     risk_items = [
         ("波動率", "15.2%"),
         ("最大回撤", "-8.5%"),
@@ -1235,15 +1248,17 @@ def create_performance_frame(notebook):
         ("索提諾比率", "1.15"),
         ("資訊比率", "0.95")
     ]
-    
+
     for i, (metric, value) in enumerate(risk_items):
-        ttk.Label(risk_metrics, text=metric).grid(row=i, column=0, padx=5, pady=2, sticky='e')
-        ttk.Label(risk_metrics, text=value).grid(row=i, column=1, padx=5, pady=2, sticky='w')
-    
+        ttk.Label(risk_metrics, text=metric).grid(
+            row=i, column=0, padx=5, pady=2, sticky='e')
+        ttk.Label(risk_metrics, text=value).grid(
+            row=i, column=1, padx=5, pady=2, sticky='w')
+
     # 風險分析圖表
     risk_right = ttk.Frame(risk_frame)
     risk_right.pack(side='right', fill='both', expand=True)
-    
+
     fig2 = Figure(figsize=(6, 4))
     ax2 = fig2.add_subplot(111)
     ax2.set_title('回撤分析')
@@ -1254,12 +1269,13 @@ def create_performance_frame(notebook):
     # 3. 交易記錄頁面
     trades_frame = ttk.Frame(details_frame)
     details_frame.add(trades_frame, text="交易記錄")
-    
+
     # 創建交易記錄表格
-    trades_tree = ttk.Treeview(trades_frame, 
-                              columns=('日期', '代碼', '股票名稱', '交易', '價格', '數量', '金額', '手續費', '交易稅', '損益'),
-                              show='headings')
-    
+    trades_tree = ttk.Treeview(trades_frame,
+                               columns=('日期', '代碼', '股票名稱', '交易', '價格',
+                                        '數量', '金額', '手續費', '交易稅', '損益'),
+                               show='headings')
+
     # 設置列標題
     column_headers = [
         ('日期', 100),
@@ -1273,17 +1289,18 @@ def create_performance_frame(notebook):
         ('交易稅', 80),
         ('損益', 100)
     ]
-    
+
     for header, width in column_headers:
         trades_tree.heading(header, text=header)
         trades_tree.column(header, width=width)
-    
+
     # 添加滾動條
-    trades_scrollbar = ttk.Scrollbar(trades_frame, orient="vertical", command=trades_tree.yview)
+    trades_scrollbar = ttk.Scrollbar(
+        trades_frame, orient="vertical", command=trades_tree.yview)
     trades_scrollbar.pack(side='right', fill='y')
     trades_tree.configure(yscrollcommand=trades_scrollbar.set)
     trades_tree.pack(fill='both', expand=True)
-    
+
     # 更新交易記錄
     df = load_original_trades()
     if not df.empty:
@@ -1296,8 +1313,9 @@ def create_performance_frame(notebook):
             else:
                 price = row['賣出價格']
                 shares = row['賣出股數']
-                amount = price * shares if not pd.isna(price) and not pd.isna(shares) else 0
-            
+                amount = price * \
+                    shares if not pd.isna(price) and not pd.isna(shares) else 0
+
             trades_tree.insert('', 'end', values=(
                 row['交易日期'],
                 row['代號'],
@@ -1310,26 +1328,26 @@ def create_performance_frame(notebook):
                 row['交易稅'],
                 row.get('價差', '')
             ))
-    
+
     # 更新圖表數據
     if not df.empty:
         # 計算累計報酬
         cumulative_returns = []
         current_return = 0
         dates = []
-        
+
         for _, row in df.sort_values('交易日期').iterrows():
             if row['買/賣/股利'] == '買':
                 current_return -= (float(row['買入價格']) * float(row['買入股數']) +
-                                 float(row['手續費']) if pd.notna(row['手續費']) else 20)
+                                   float(row['手續費']) if pd.notna(row['手續費']) else 20)
             elif row['買/賣/股利'] == '賣':
                 current_return += (float(row['賣出價格']) * float(row['賣出股數']) -
-                                 float(row['手續費']) if pd.notna(row['手續費']) else 20 -
-                                 float(row['交易稅']) if pd.notna(row['交易稅']) else 0)
-            
+                                   float(row['手續費']) if pd.notna(row['手續費']) else 20 -
+                                   float(row['交易稅']) if pd.notna(row['交易稅']) else 0)
+
             cumulative_returns.append(current_return)
             dates.append(pd.to_datetime(row['交易日期']))
-        
+
         # 更新報酬分析圖表
         ax.clear()
         ax.plot(dates, cumulative_returns, marker='o')
@@ -1338,7 +1356,7 @@ def create_performance_frame(notebook):
         plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
         fig.tight_layout()
         canvas.draw()
-        
+
         # 更新風險分析圖表
         ax2.clear()
         # 計算回撤
@@ -1349,7 +1367,7 @@ def create_performance_frame(notebook):
                 peak = ret
             drawdown = (ret - peak) / peak * 100 if peak != 0 else 0
             drawdowns.append(drawdown)
-        
+
         ax2.plot(dates, drawdowns, color='red')
         ax2.set_title('回撤分析')
         ax2.grid(True)
@@ -1363,7 +1381,8 @@ def create_performance_frame(notebook):
         # 計算每月的報酬率
         df['交易日期'] = pd.to_datetime(df['交易日期'])
         df.set_index('交易日期', inplace=True)
-        monthly_returns = df.resample('ME').apply(lambda x: (x['收入'].sum() - x['支出'].sum()) / x['支出'].sum() if x['支出'].sum() != 0 else 0)
+        monthly_returns = df.resample('ME').apply(lambda x: (
+            x['收入'].sum() - x['支出'].sum()) / x['支出'].sum() if x['支出'].sum() != 0 else 0)
 
         # 清空表格
         for item in tree.get_children():
@@ -1371,7 +1390,8 @@ def create_performance_frame(notebook):
 
         # 插入新數據
         for date, value in monthly_returns.items():
-            tree.insert('', 'end', values=(date.strftime('%Y-%m'), f'{value:.2%}', f'{value:.2f}'))
+            tree.insert('', 'end', values=(date.strftime(
+                '%Y-%m'), f'{value:.2%}', f'{value:.2f}'))
 
     return frame
 
@@ -1486,7 +1506,7 @@ def export_trading_records():
             messagebox.showerror("錯誤", "無法存取選擇的位置，請確認是否有寫入權限")
         except Exception as e:
             messagebox.showerror("錯誤", f"匯出失敗：{str(e)}\n請確認檔案未被其他程式開啟")
-            
+
     except Exception as e:
         messagebox.showerror("錯誤", f"準備匯出資料時發生錯誤：{str(e)}")
 
@@ -1744,102 +1764,109 @@ def get_institutional_data(stock_code):
     try:
         # 移除股票代碼中的 .TW 或 .TWO
         stock_code = ''.join(filter(str.isdigit, stock_code))
-        
+
         # 設定日期範圍（最近5個交易日）
         end_date = datetime.now()
         start_date = end_date - timedelta(days=10)  # 多取幾天以確保有5個交易日
-        
+
         # 證交所API網址
         url = "https://www.twse.com.tw/rwd/zh/fund/T86?date={}&selectType=ALL&response=json"
-        
+
         data = {
             'dates': [],
             'foreign': [],
             'trust': [],
             'dealer': []
         }
-        
+
         # 獲取每日資料
         current_date = start_date
         while current_date <= end_date:
             date_str = current_date.strftime('%Y%m%d')
             response = requests.get(url.format(date_str))
-            
+
             if response.status_code == 200:
                 json_data = response.json()
                 if json_data.get('data'):
                     for row in json_data['data']:
                         if row[0] == stock_code:
                             data['dates'].append(current_date)
-                            data['foreign'].append(int(row[4].replace(',', '')))  # 外資買賣超
-                            data['trust'].append(int(row[7].replace(',', '')))    # 投信買賣超
-                            data['dealer'].append(int(row[10].replace(',', '')))  # 自營商買賣超
-            
+                            data['foreign'].append(
+                                int(row[4].replace(',', '')))  # 外資買賣超
+                            data['trust'].append(
+                                int(row[7].replace(',', '')))    # 投信買賣超
+                            data['dealer'].append(
+                                int(row[10].replace(',', '')))  # 自營商買賣超
+
             current_date += timedelta(days=1)
             time.sleep(0.5)  # 避免請求過於頻繁
-            
+
         return data
     except Exception as e:
         print(f"獲取三大法人資料時出錯：{str(e)}")
         return None
+
 
 def get_margin_trading_data(stock_code):
     """獲取融資融券餘額資料"""
     try:
         # 移除股票代碼中的 .TW 或 .TWO
         stock_code = ''.join(filter(str.isdigit, stock_code))
-        
+
         # 證交所融資融券API
         url = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={}&selectType=ALL&response=json"
-        
+
         end_date = datetime.now()
         start_date = end_date - timedelta(days=10)
-        
+
         data = {
             'dates': [],
             'margin_balance': [],
             'short_balance': []
         }
-        
+
         current_date = start_date
         while current_date <= end_date:
             date_str = current_date.strftime('%Y%m%d')
             response = requests.get(url.format(date_str))
-            
+
             if response.status_code == 200:
                 json_data = response.json()
                 if json_data.get('data'):
                     for row in json_data['data']:
                         if row[0] == stock_code:
                             data['dates'].append(current_date)
-                            data['margin_balance'].append(int(row[5].replace(',', '')))  # 融資餘額
-                            data['short_balance'].append(int(row[8].replace(',', '')))   # 融券餘額
-            
+                            data['margin_balance'].append(
+                                int(row[5].replace(',', '')))  # 融資餘額
+                            data['short_balance'].append(
+                                int(row[8].replace(',', '')))   # 融券餘額
+
             current_date += timedelta(days=1)
             time.sleep(0.5)
-            
+
         return data
     except Exception as e:
         print(f"獲取融資融券資料時出錯：{str(e)}")
         return None
+
 
 def get_shareholding_distribution(stock_code):
     """獲取股權分散資料"""
     try:
         # 移除股票代碼中的 .TW 或 .TWO
         stock_code = ''.join(filter(str.isdigit, stock_code))
-        
+
         # 證交所股權分散表API
         url = f"https://www.tdcc.com.tw/smWeb/QryStockAjax.do"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
         }
-        
+
         # 取得最近一週的資料
         today = datetime.now()
         friday = today - timedelta(days=(today.weekday() - 4) % 7)
         date_str = friday.strftime('%Y%m%d')
-        
+
         data = {
             'scaDates': date_str,
             'scaDate': date_str,
@@ -1847,13 +1874,13 @@ def get_shareholding_distribution(stock_code):
             'StockNo': stock_code,
             'radioStockNo': stock_code
         }
-        
+
         response = requests.post(url, data=data, headers=headers)
-        
+
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             table = soup.find('table', {'class': 'table_2'})
-            
+
             if table:
                 rows = table.find_all('tr')[1:]  # 跳過表頭
                 total_shares = 0
@@ -1867,23 +1894,24 @@ def get_shareholding_distribution(stock_code):
                     '500,001-1,000,000': 0,
                     '1,000,001以上': 0
                 }
-                
+
                 for row in rows:
                     cols = row.find_all('td')
                     if len(cols) >= 4:
                         shares = int(cols[3].text.replace(',', ''))
                         total_shares += shares
-                        
+
                         # 根據持股數量分類
                         level = cols[1].text.strip()
                         distribution[level] = shares
-                
+
                 return distribution
-            
+
         return None
     except Exception as e:
         print(f"獲取股權分散資料時出錯：{str(e)}")
         return None
+
 
 def update_chip_data(stock_code):
     """更新籌碼資料"""
@@ -1894,73 +1922,75 @@ def update_chip_data(stock_code):
         margin_data = get_margin_trading_data(stock_code)
         # 獲取股權分散資料
         dist_data = get_shareholding_distribution(stock_code)
-        
+
         if not any([inst_data, margin_data, dist_data]):
             print("無法獲取籌碼資料")
             return
-            
+
         # 清除現有圖表
         for widget in chart_frame.winfo_children():
             widget.destroy()
-            
+
         # 創建新圖表
         fig = Figure(figsize=(10, 8))
-        
+
         # 設置全局字型
         plt.rcParams['font.size'] = 10
-        
+
         # 三大法人買賣超圖
         ax1 = fig.add_subplot(311)
         if inst_data:
             dates = inst_data['dates']
-            ax1.bar(dates, inst_data['foreign'], label='外資', color='red', alpha=0.7)
-            ax1.bar(dates, inst_data['trust'], bottom=inst_data['foreign'], 
-                   label='投信', color='green', alpha=0.7)
-            ax1.bar(dates, inst_data['dealer'], 
-                   bottom=[f+t for f,t in zip(inst_data['foreign'], inst_data['trust'])],
-                   label='自營商', color='blue', alpha=0.7)
-            
+            ax1.bar(dates, inst_data['foreign'],
+                    label='外資', color='red', alpha=0.7)
+            ax1.bar(dates, inst_data['trust'], bottom=inst_data['foreign'],
+                    label='投信', color='green', alpha=0.7)
+            ax1.bar(dates, inst_data['dealer'],
+                    bottom=[
+                        f+t for f, t in zip(inst_data['foreign'], inst_data['trust'])],
+                    label='自營商', color='blue', alpha=0.7)
+
         ax1.set_title('三大法人買賣超')
         ax1.legend()
         ax1.grid(True)
-        
+
         # 融資融券圖
         ax2 = fig.add_subplot(312)
         if margin_data:
             dates = margin_data['dates']
-            ax2.plot(dates, margin_data['margin_balance'], 
-                    label='融資餘額', color='red', marker='o')
-            ax2.plot(dates, margin_data['short_balance'], 
-                    label='融券餘額', color='green', marker='o')
-            
+            ax2.plot(dates, margin_data['margin_balance'],
+                     label='融資餘額', color='red', marker='o')
+            ax2.plot(dates, margin_data['short_balance'],
+                     label='融券餘額', color='green', marker='o')
+
         ax2.set_title('融資融券餘額')
         ax2.legend()
         ax2.grid(True)
-        
+
         # 股權分散圖
         ax3 = fig.add_subplot(313)
         if dist_data:
             labels = list(dist_data.keys())
             sizes = list(dist_data.values())
-            ax3.pie(sizes, labels=labels, autopct='%1.1f%%', 
-                   colors=['red', 'green', 'blue', 'gray', 'orange', 'purple', 'yellow', 'pink'])
+            ax3.pie(sizes, labels=labels, autopct='%1.1f%%',
+                    colors=['red', 'green', 'blue', 'gray', 'orange', 'purple', 'yellow', 'pink'])
             ax3.set_title('股權分散')
-        
+
         # 調整布局
         fig.tight_layout()
-        
+
         # 創建畫布並顯示
         canvas = FigureCanvasTkAgg(fig, master=chart_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill='both', expand=True)
-        
+
         # 更新左側籌碼資訊
         if inst_data and margin_data:
             # 計算三大法人最新持股比例
-            total_inst = sum([inst_data['foreign'].iloc[-1], 
-                            inst_data['trust'].iloc[-1], 
-                            inst_data['dealer'].iloc[-1]])
-            
+            total_inst = sum([inst_data['foreign'].iloc[-1],
+                              inst_data['trust'].iloc[-1],
+                              inst_data['dealer'].iloc[-1]])
+
             labels['foreign_holding'].config(
                 text=f"{inst_data['foreign'].iloc[-1]/total_inst*100:.2f}%")
             labels['trust_holding'].config(
@@ -1971,12 +2001,13 @@ def update_chip_data(stock_code):
                 text=f"{margin_data['margin_balance'].iloc[-1]:,}")
             labels['short_balance'].config(
                 text=f"{margin_data['short_balance'].iloc[-1]:,}")
-            
+
             # 計算當沖比率（假設值）
             labels['day_trade_ratio'].config(text="5.23%")
-            
+
     except Exception as e:
         print(f"更新籌碼資料時出錯：{str(e)}")
+
 
 # 啟動應用程序
 if __name__ == "__main__":
